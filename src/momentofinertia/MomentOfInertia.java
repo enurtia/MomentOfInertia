@@ -8,16 +8,25 @@ import javafx.application.Application;
 import javafx.collections.ObservableFloatArray;
 import javafx.collections.ObservableIntegerArray;
 import javafx.geometry.Bounds;
+import javafx.geometry.Point3D;
 import javafx.scene.Group;
-import javafx.scene.PerspectiveCamera;
 import javafx.scene.Scene;
+import javafx.scene.SceneAntialiasing;
+import javafx.scene.SubScene;
+import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
+import javafx.scene.input.MouseEvent;
+import javafx.scene.input.PickResult;
 import javafx.scene.paint.Color;
+import javafx.scene.paint.PhongMaterial;
+import javafx.scene.shape.Cylinder;
+import javafx.scene.shape.DrawMode;
 import javafx.scene.shape.MeshView;
 import javafx.scene.shape.Sphere;
 import javafx.scene.shape.TriangleMesh;
-import javafx.scene.transform.Transform;
+import javafx.scene.text.Text;
 import javafx.stage.Stage;
+import javax.swing.JOptionPane;
 
 public class MomentOfInertia extends Application 
 {
@@ -25,12 +34,32 @@ public class MomentOfInertia extends Application
     private final String TITLE = "Moment of Inertia Program";
     private final double KEY_SENS = 2;
     
+    private double x;
+    private double y;
+    
+    private double mPerUnit;
+    private double objMass;
+    
+    private Point3D avg;
+    
+    private ArrayList<Sphere> lengthPts = new ArrayList<>();
+    
+    //The points that make up the object
+    ArrayList<Double[]> pts = new ArrayList<>();
+    
     @Override
     public void start(Stage primaryStage) throws Exception
     {
-        Group root = new Group();
+        Group rootMain = new Group();
+        Scene scene = new Scene(rootMain, SIZE.width, SIZE.height, true);   
         
-        Scene scene = new Scene(root, SIZE.width, SIZE.height);
+        Group root = new Group();
+        SubScene subscene = new SubScene(root, SIZE.width, SIZE.height, true, SceneAntialiasing.BALANCED);
+        subscene.heightProperty().bind(scene.heightProperty());
+        subscene.widthProperty().bind(scene.widthProperty());
+        subscene.setPickOnBounds(true);
+        
+        rootMain.getChildren().add(subscene);
         
         primaryStage.setTitle(TITLE);
         primaryStage.setScene(scene);
@@ -42,19 +71,23 @@ public class MomentOfInertia extends Application
         ObjModelImporter importer = new ObjModelImporter();
         importer.read(new File("C:\\Users\\Enurtia\\Desktop\\Sphere.obj"));
         
-        MeshView sphere = importer.getImport()[0];
+        MeshView object = importer.getImport()[0];
+        object.setDrawMode(DrawMode.LINE);
         importer.close();
         
-        root.getChildren().add(sphere);
+        
+        ObjPoints objP = new ObjPoints(object);
+        
+        root.getChildren().add(object);
         
         
-        PerspectiveCamera camera = new PerspectiveCamera(true);
-        scene.setCamera(camera);
+        LookCamera camera = new LookCamera(true);
+        subscene.setCamera(camera);
         camera.setTranslateZ(-30);
         
-        ArrayList<Double[]> boundBox = bBox(sphere.getBoundsInParent());
+        ArrayList<Double[]> boundBox = objP.bBox(object.getBoundsInParent());
         
-        //Create 4 corners
+        //Create 8 corners
         for(int i = 0; i < boundBox.size(); i++)
         {
             Sphere s = new Sphere();
@@ -67,201 +100,168 @@ public class MomentOfInertia extends Application
             
             root.getChildren().add(s);
         }
+            
+        pts = objP.getPts();
         
-        TriangleMesh triMesh = (TriangleMesh)sphere.getMesh();
-
-        //Get normals
-        ObservableIntegerArray faces = triMesh.getFaces();
-        ObservableFloatArray points = triMesh.getPoints();
         
-        ArrayList<Double[]> normals = new ArrayList<>();
-        ArrayList<Double[]> faceCentroids = new ArrayList<>();
-        
-        for(int i = 0; i < faces.size(); i += 6)
+        for(int i = 0; i < pts.size(); i++)
         {
-            double p1x = points.get(3*faces.get(i));
-            double p1y = points.get(3*faces.get(i) + 1);
-            double p1z = points.get(3*faces.get(i) + 2);
+            Sphere s = new Sphere();
+            s.setRadius(0.2);
+            s.setTranslateX(pts.get(i)[0]);
+            s.setTranslateY(pts.get(i)[1]);
+            s.setTranslateZ(pts.get(i)[2]);
             
-            double p2x = points.get(3*faces.get(i+2));
-            double p2y = points.get(3*faces.get(i+2) + 1);
-            double p2z = points.get(3*faces.get(i+2) + 2);
-            
-            double p3x = points.get(3*faces.get(i+4));
-            double p3y = points.get(3*faces.get(i+4) + 1);
-            double p3z = points.get(3*faces.get(i+4) + 2);
-            
-            
-            //Normal is the cross product of u and v, where
-            //u is between points 1 and 2,
-            //v is between points 2 and 3.
-            double ux = (p2x - p1x);
-            double uy = (p2y - p1y);
-            double uz = (p2z - p1z);
-            
-            double vx = (p3x - p1x);
-            double vy = (p3y - p1y);
-            double vz = (p3z - p1z);
-            
-            double nx = (uy*vz - uz*vy);
-            double ny = (uz*vx - ux*vz);    
-            double nz = (ux*vy - uy*vx);
-            
-            double dist = Math.sqrt(nx*nx + ny*ny + nz*nz);
-            
-            normals.add(new Double[]{nx/dist, ny/dist, nz/dist});
-            
-            //Face Centroid
-            double x = ((p1x + p2x + p3x) / 3);
-            double y = ((p1y + p2y + p3y) / 3);
-            double z = ((p1z + p2z + p3z) / 3);
-            faceCentroids.add(new Double[]{x,y,z});
+            root.getChildren().add(s);
         }
         
-        
-        //Bounding Box Discretize
-        //Points not inside object are removed.
-        ArrayList<Double[]> pts = discretizeSolid(sphere.getBoundsInParent(), 20);
-        for(int i = pts.size()-1; i >= 0; i--)
+        //Calculate where the center of mass is located
+        avg = new Point3D(0,0,0);
+        for(int i = 0; i < pts.size(); i++)
         {
             Double[] pt = pts.get(i);
-            
-            boolean isIn = isInside(pt, faceCentroids, normals);
-            if(!isIn)
-            {
-                pts.remove(pt);
-            }
-            else
-            {
-                Sphere s = new Sphere();
-                s.setRadius(0.1);
-                s.setTranslateX(pt[0]);
-                s.setTranslateY(pt[1]);
-                s.setTranslateZ(pt[2]);
-            
-                root.getChildren().add(s);
-            }
+            avg = avg.add(pt[0], pt[1], pt[2]);
         }
+        avg = avg.multiply(1.0 / pts.size());
+        
+        updateText(rootMain);
         
         scene.setOnKeyPressed((KeyEvent ke) ->
         {
-            Transform t = camera.getLocalToSceneTransform();
-            switch(ke.getCode())
+            camera.keyMove(ke, KEY_SENS);
+            
+            if(ke.getCode() == KeyCode.ENTER)
             {
-                case W:
-                    camera.setTranslateX(camera.getTranslateX() + (KEY_SENS * t.getMxz()));
-                    camera.setTranslateY(camera.getTranslateY() + (KEY_SENS * t.getMyz()));
-                    camera.setTranslateZ(camera.getTranslateZ() + (KEY_SENS * t.getMzz()));
-                    break;
-                case S:
-                    camera.setTranslateX(camera.getTranslateX() - (KEY_SENS * t.getMxz()));
-                    camera.setTranslateY(camera.getTranslateY() - (KEY_SENS * t.getMyz()));
-                    camera.setTranslateZ(camera.getTranslateZ() - (KEY_SENS * t.getMzz()));
-                    break;
-                case A:
-                    camera.setTranslateX(camera.getTranslateX() - (KEY_SENS * t.getMxx()));
-                    camera.setTranslateY(camera.getTranslateY() - (KEY_SENS * t.getMyx()));
-                    camera.setTranslateZ(camera.getTranslateZ() - (KEY_SENS * t.getMzx()));
-                    break;
-                case D:
-                    camera.setTranslateX(camera.getTranslateX() + (KEY_SENS * t.getMxx()));
-                    camera.setTranslateY(camera.getTranslateY() + (KEY_SENS * t.getMyx()));
-                    camera.setTranslateZ(camera.getTranslateZ() + (KEY_SENS * t.getMzx()));
-                    break;
-                case SPACE:
-                    camera.setTranslateX(camera.getTranslateX() - (KEY_SENS * t.getMxy()));
-                    camera.setTranslateY(camera.getTranslateY() - (KEY_SENS * t.getMyy()));
-                    camera.setTranslateZ(camera.getTranslateZ() - (KEY_SENS * t.getMzy()));
-                    break;
-                case CONTROL:
-                    camera.setTranslateX(camera.getTranslateX() + (KEY_SENS * t.getMxy()));
-                    camera.setTranslateY(camera.getTranslateY() + (KEY_SENS * t.getMyy()));
-                    camera.setTranslateZ(camera.getTranslateZ() + (KEY_SENS * t.getMzy()));
-                    break;
+                String massIn = JOptionPane.showInputDialog("Input the mass of the object in Kilograms: ");
+                objMass = Double.parseDouble(massIn);
+                updateText(rootMain);
+            }
+            else if(ke.getCode() == KeyCode.SHIFT)
+            {
+                String mPerPixIn = JOptionPane.showInputDialog("Input the meters per unit: ");
+                mPerUnit = Double.parseDouble(mPerPixIn);
+                updateText(rootMain);
             }
         });       
-    }
-
-    private boolean isInside(Double[] pt, ArrayList<Double[]> centroids, ArrayList<Double[]> norms)
-    {
-        double x = pt[0];
-        double y = pt[1];
-        double z = pt[2];
         
-        //Find closest centroid to point
-        int minInd = -1;
-        double min = Integer.MAX_VALUE;
-        double[] minVector = new double[3];
-        
-        for(int i = 0; i < centroids.size(); i++)
+        subscene.setOnMousePressed((MouseEvent me) ->
         {
-            Double[] centroid = centroids.get(i);
-            
-            double dx = (centroid[0] - x);
-            double dy = (centroid[1] - y);
-            double dz = (centroid[2] - z);
-            
-            
-            
-            double dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
-            if(dist < min)
+            camera.screenUpdate(me.getSceneX(), me.getSceneY());
+        });
+        
+        subscene.setOnMouseDragged((MouseEvent me) ->
+        {
+            if(me.isPrimaryButtonDown())
             {
-                min = dist;
-                minInd = i;
-                minVector = new double[]{dx/dist, dy/dist, dz/dist};
+                double sens = 0.06;
+                camera.mouseMove(me.getSceneX(), me.getSceneY(), sens);
             }
+        });
+        
+        subscene.setOnMouseClicked((MouseEvent me) ->
+        {           
+            PickResult pr = me.getPickResult();
+            Point3D point = pr.getIntersectedPoint();
+            
+            Sphere s = new Sphere();
+            s.setRadius(0.2);
+            s.setTranslateX(point.getX());
+            s.setTranslateY(point.getY());
+            s.setTranslateZ(point.getZ());
+            
+            PhongMaterial mat = new PhongMaterial();
+            mat.setDiffuseColor(lengthPts.size() != 1 ? Color.GREEN : Color.RED);
+            s.setMaterial(mat);
+            root.getChildren().add(s);
+            
+            if(lengthPts.size() == 2)
+            {
+                root.getChildren().removeAll(lengthPts);
+                lengthPts.clear();
+            }
+            else if(lengthPts.size() == 1)
+            {
+                double startx = lengthPts.get(0).getTranslateX();
+                double starty = lengthPts.get(0).getTranslateY();
+                double startz = lengthPts.get(0).getTranslateZ();
+                
+                double dx = startx - point.getX();
+                double dy = starty - point.getY();
+                double dz = startz - point.getZ();
+                
+                
+                double dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+                System.out.println(dist);
+            }
+            
+            lengthPts.add(s);
+        });
+        
+        
+        Line cylinx = new Line(avg, avg.add(new Point3D(10,0,0)));
+        Line cyliny = new Line(avg, avg.add(new Point3D(0,10,0)));
+        Line cylinz = new Line(avg, avg.add(new Point3D(0,0,10)));
+        root.getChildren().addAll(cylinx, cyliny, cylinz);
+    }
+    
+    private void updateText(Group root)
+    {
+        root.getChildren().removeIf(n -> (n.getClass() == Text.class));
+        root.getChildren().removeIf(n -> (n.getClass() == Cylinder.class));
+        
+        Text massText = new Text();
+        massText.setText("Mass: " + objMass + " kg");
+        massText.setTranslateX(25);
+        massText.setTranslateY(20);
+        
+        Text mPerPixelText = new Text();
+        mPerPixelText.setText("Meters per unit: " + mPerUnit);
+        mPerPixelText.setTranslateX(25);
+        mPerPixelText.setTranslateY(35);
+        
+        Text mx = new Text();
+        mx.setText("Moment x-axis: " + calculate(avg, new Point3D(1,0,0), mPerUnit, objMass) + " kg m^2");
+        mx.setTranslateX(25);
+        mx.setTranslateY(50);
+        
+        Text my = new Text();
+        my.setText("Moment y-axis: " + calculate(avg, new Point3D(0,1,0), mPerUnit, objMass) + " kg m^2");
+        my.setTranslateX(25);
+        my.setTranslateY(65);
+        
+        Text mz = new Text();
+        mz.setText("Moment z-axis: " + calculate(avg, new Point3D(0,0,1), mPerUnit, objMass) + " kg m^2");
+        mz.setTranslateX(25);
+        mz.setTranslateY(80);
+        
+        
+        root.getChildren().addAll(massText, mPerPixelText, mx, my, mz);
+    }
+    
+    public double calculate(Point3D origin, Point3D axisDir, double metersPerUnit, double mass)
+    {
+        double particleMass = mass / pts.size();    //Kilograms
+        
+        double total = 0;
+        for(int i = 0; i < pts.size(); i++)
+        {
+            Double[] pt = pts.get(i);
+            double x = pt[0];
+            double y = pt[1];
+            double z = pt[2];
+            
+            Point3D p = new Point3D(x,y,z);
+            
+            
+            double r = axisDir.dotProduct(p.subtract(origin)) * metersPerUnit; //Converted to meters
+            System.out.println("R: " + r);
+            
+            total += particleMass*r*r;
         }
         
-        //Calculate dot product of normal and vector from point to centroid
-        Double[] normal = norms.get(minInd);
-        double dp = normal[0]*minVector[0] + normal[1]*minVector[1] + normal[2]*minVector[2];
-        
-        return dp >= 0;
+        return total;
     }
     
-   private ArrayList<Double[]> bBox(Bounds bounds)
-    {
-        double[] x = {bounds.getMinX(), bounds.getMaxX()};
-        double[] y = {bounds.getMinY(), bounds.getMaxY()};
-        double[] z = {bounds.getMinZ(), bounds.getMaxZ()};
-     
-        ArrayList<Double[]> out = new ArrayList<>();
-        out.add(new Double[]{x[0], y[0], z[0]});
-        out.add(new Double[]{x[1], y[0], z[0]});
-        out.add(new Double[]{x[0], y[1], z[0]});
-        out.add(new Double[]{x[0], y[0], z[1]});
-        out.add(new Double[]{x[1], y[1], z[0]});
-        out.add(new Double[]{x[0], y[1], z[1]});
-        out.add(new Double[]{x[1], y[0], z[1]});
-        out.add(new Double[]{x[1], y[1], z[1]});
-   
-        return out;
-    }
-    
-   //Gets ArrayList of {x,y,z} values that fill bounds with a given density.
-   private ArrayList<Double[]> discretizeSolid(Bounds bounds, double density) throws Exception
-   {
-       double xLen = bounds.getMaxX() - bounds.getMinX();
-       double yLen = bounds.getMaxY() - bounds.getMinY();
-       double zLen = bounds.getMaxZ() - bounds.getMinZ();
-       
-       ArrayList<Double[]> pts = new ArrayList<>();
-       
-       for(double x = 0; x <= xLen; x += xLen / density)
-       {
-           for(double y = 0; y <= yLen; y += yLen / density)
-           {
-               for(double z = 0; z <= zLen; z += zLen / density)
-               {
-                   Double[] pt = new Double[]{bounds.getMinX() + x, bounds.getMinY() + y, bounds.getMinZ() + z};
-                   pts.add(pt);
-               }
-           }
-       }
-       
-       return pts;
-   }
-   
     public static void main(String[] args) 
     {
         launch(args);
