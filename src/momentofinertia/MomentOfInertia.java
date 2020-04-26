@@ -9,6 +9,7 @@ import javafx.collections.ObservableFloatArray;
 import javafx.collections.ObservableIntegerArray;
 import javafx.geometry.Bounds;
 import javafx.geometry.Point3D;
+import javafx.scene.DepthTest;
 import javafx.scene.Group;
 import javafx.scene.Scene;
 import javafx.scene.SceneAntialiasing;
@@ -34,15 +35,10 @@ public class MomentOfInertia extends Application
     private final String TITLE = "Moment of Inertia Program";
     private final double KEY_SENS = 2;
     
-    private double x;
-    private double y;
-    
-    private double mPerUnit;
-    private double objMass;
+    private double mPerUnit = 1;
+    private double objMass = 1;
     
     private Point3D avg;
-    
-    private ArrayList<Sphere> lengthPts = new ArrayList<>();
     
     //The points that make up the object
     ArrayList<Double[]> pts = new ArrayList<>();
@@ -69,13 +65,13 @@ public class MomentOfInertia extends Application
         
         
         ObjModelImporter importer = new ObjModelImporter();
-        importer.read(new File("C:\\Users\\Enurtia\\Desktop\\Sphere.obj"));
+        importer.read(new File("C:\\Users\\Enurtia\\Desktop\\cylinder.obj"));
         
         MeshView object = importer.getImport()[0];
         object.setDrawMode(DrawMode.LINE);
         importer.close();
         
-        
+        PathSelect pathSelect = new PathSelect(object, root);
         ObjPoints objP = new ObjPoints(object);
         
         root.getChildren().add(object);
@@ -112,7 +108,7 @@ public class MomentOfInertia extends Application
             s.setTranslateY(pts.get(i)[1]);
             s.setTranslateZ(pts.get(i)[2]);
             
-            root.getChildren().add(s);
+            //root.getChildren().add(s);
         }
         
         //Calculate where the center of mass is located
@@ -151,50 +147,30 @@ public class MomentOfInertia extends Application
         
         subscene.setOnMouseDragged((MouseEvent me) ->
         {
-            if(me.isPrimaryButtonDown())
+            if(me.isSecondaryButtonDown())
             {
                 double sens = 0.06;
                 camera.mouseMove(me.getSceneX(), me.getSceneY(), sens);
             }
         });
         
-        subscene.setOnMouseClicked((MouseEvent me) ->
-        {           
+        subscene.setOnMouseMoved((MouseEvent me) ->
+        {
             PickResult pr = me.getPickResult();
             Point3D point = pr.getIntersectedPoint();
             
-            Sphere s = new Sphere();
-            s.setRadius(0.2);
-            s.setTranslateX(point.getX());
-            s.setTranslateY(point.getY());
-            s.setTranslateZ(point.getZ());
-            
-            PhongMaterial mat = new PhongMaterial();
-            mat.setDiffuseColor(lengthPts.size() != 1 ? Color.GREEN : Color.RED);
-            s.setMaterial(mat);
-            root.getChildren().add(s);
-            
-            if(lengthPts.size() == 2)
+            if(pr.getIntersectedNode() == object)
             {
-                root.getChildren().removeAll(lengthPts);
-                lengthPts.clear();
+                pathSelect.update(point);
             }
-            else if(lengthPts.size() == 1)
-            {
-                double startx = lengthPts.get(0).getTranslateX();
-                double starty = lengthPts.get(0).getTranslateY();
-                double startz = lengthPts.get(0).getTranslateZ();
-                
-                double dx = startx - point.getX();
-                double dy = starty - point.getY();
-                double dz = startz - point.getZ();
-                
-                
-                double dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
-                System.out.println(dist);
-            }
+        });
+        
+        subscene.setOnMouseClicked((MouseEvent me) ->
+        {     
+            PickResult pr = me.getPickResult();
+            Point3D point = pr.getIntersectedPoint();
             
-            lengthPts.add(s);
+            pathSelect.click(point, pr.getIntersectedNode() == object);
         });
         
         
