@@ -1,7 +1,9 @@
 package momentofinertia;
 
+import javafx.geometry.Point3D;
 import javafx.scene.PerspectiveCamera;
 import javafx.scene.input.KeyEvent;
+import javafx.scene.transform.Rotate;
 import javafx.scene.transform.Transform;
 
 public class LookCamera extends PerspectiveCamera
@@ -26,6 +28,21 @@ public class LookCamera extends PerspectiveCamera
         double dx = screenX != 0 ? x - screenX : 0;
         double dy = screenY != 0 ? y - screenY : 0;
         screenUpdate(x, y);
+        
+        rotate(dx, sens);
+    }
+
+    public void rotate(double dx, double sens)
+    {
+        Rotate rotateX = new Rotate();
+        rotateX.setPivotX(0);
+        rotateX.setPivotY(0);
+        rotateX.setPivotZ(0);
+        
+        rotateX.setAxis(new Point3D(0, 1, 0));
+        
+        rotateX.setAngle(dx*sens);
+        this.getTransforms().add(rotateX);
     }
     
     public void keyMove(KeyEvent ke, double sens)
@@ -62,6 +79,12 @@ public class LookCamera extends PerspectiveCamera
                 this.setTranslateX(this.getTranslateX() + (sens * t.getMxy()));
                 this.setTranslateY(this.getTranslateY() + (sens * t.getMyy()));
                 this.setTranslateZ(this.getTranslateZ() + (sens * t.getMzy()));
+                break;
+            case Q:
+                rotate(-1, 4);
+                break;
+            case E:
+                rotate(1, 4);
                 break;
         }
     }

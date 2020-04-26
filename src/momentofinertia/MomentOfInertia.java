@@ -9,12 +9,14 @@ import javafx.collections.ObservableFloatArray;
 import javafx.collections.ObservableIntegerArray;
 import javafx.geometry.Bounds;
 import javafx.geometry.Point3D;
+import javafx.scene.DepthTest;
 import javafx.scene.Group;
 import javafx.scene.Scene;
 import javafx.scene.SceneAntialiasing;
 import javafx.scene.SubScene;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
+import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.input.PickResult;
 import javafx.scene.paint.Color;
@@ -34,18 +36,15 @@ public class MomentOfInertia extends Application
     private final String TITLE = "Moment of Inertia Program";
     private final double KEY_SENS = 2;
     
-    private double x;
-    private double y;
-    
-    private double mPerUnit;
-    private double objMass;
+    private double mPerUnit = 1;
+    private double objMass = 1;
     
     private Point3D avg;
     
-    private ArrayList<Sphere> lengthPts = new ArrayList<>();
-    
     //The points that make up the object
     ArrayList<Double[]> pts = new ArrayList<>();
+    
+    ArrayList<Double[]> boundBox = new ArrayList<>();
     
     @Override
     public void start(Stage primaryStage) throws Exception
@@ -69,13 +68,13 @@ public class MomentOfInertia extends Application
         
         
         ObjModelImporter importer = new ObjModelImporter();
-        importer.read(new File("C:\\Users\\Enurtia\\Desktop\\Sphere.obj"));
+        importer.read(new File("C:\\Users\\Enurtia\\Desktop\\cylinder.obj"));
         
         MeshView object = importer.getImport()[0];
         object.setDrawMode(DrawMode.LINE);
         importer.close();
         
-        
+        PathSelect pathSelect = new PathSelect(object, root);
         ObjPoints objP = new ObjPoints(object);
         
         root.getChildren().add(object);
@@ -85,7 +84,7 @@ public class MomentOfInertia extends Application
         subscene.setCamera(camera);
         camera.setTranslateZ(-30);
         
-        ArrayList<Double[]> boundBox = objP.bBox(object.getBoundsInParent());
+        boundBox = objP.bBox(object.getBoundsInParent());
         
         //Create 8 corners
         for(int i = 0; i < boundBox.size(); i++)
@@ -107,7 +106,7 @@ public class MomentOfInertia extends Application
         for(int i = 0; i < pts.size(); i++)
         {
             Sphere s = new Sphere();
-            s.setRadius(0.2);
+            s.setRadius(0.01);
             s.setTranslateX(pts.get(i)[0]);
             s.setTranslateY(pts.get(i)[1]);
             s.setTranslateZ(pts.get(i)[2]);
@@ -130,16 +129,25 @@ public class MomentOfInertia extends Application
         {
             camera.keyMove(ke, KEY_SENS);
             
-            if(ke.getCode() == KeyCode.ENTER)
+            if(ke.getCode() == KeyCode.SHIFT)
             {
                 String massIn = JOptionPane.showInputDialog("Input the mass of the object in Kilograms: ");
                 objMass = Double.parseDouble(massIn);
                 updateText(rootMain);
             }
-            else if(ke.getCode() == KeyCode.SHIFT)
+            else if(ke.getCode() == KeyCode.ENTER && !pathSelect.isActive())
             {
                 String mPerPixIn = JOptionPane.showInputDialog("Input the meters per unit: ");
                 mPerUnit = Double.parseDouble(mPerPixIn);
+                
+                updateText(rootMain);
+            }
+            else if(ke.getCode() == KeyCode.ENTER && pathSelect.isActive())
+            {
+                String meters = JOptionPane.showInputDialog("Input the distance in meters: ");
+                mPerUnit = Double.parseDouble(meters) / pathSelect.getDistance();
+                
+                pathSelect.reset();
                 updateText(rootMain);
             }
         });       
@@ -151,50 +159,33 @@ public class MomentOfInertia extends Application
         
         subscene.setOnMouseDragged((MouseEvent me) ->
         {
-            if(me.isPrimaryButtonDown())
+            if(me.isSecondaryButtonDown())
             {
                 double sens = 0.06;
                 camera.mouseMove(me.getSceneX(), me.getSceneY(), sens);
             }
         });
         
-        subscene.setOnMouseClicked((MouseEvent me) ->
-        {           
+        subscene.setOnMouseMoved((MouseEvent me) ->
+        {
             PickResult pr = me.getPickResult();
             Point3D point = pr.getIntersectedPoint();
             
-            Sphere s = new Sphere();
-            s.setRadius(0.2);
-            s.setTranslateX(point.getX());
-            s.setTranslateY(point.getY());
-            s.setTranslateZ(point.getZ());
-            
-            PhongMaterial mat = new PhongMaterial();
-            mat.setDiffuseColor(lengthPts.size() != 1 ? Color.GREEN : Color.RED);
-            s.setMaterial(mat);
-            root.getChildren().add(s);
-            
-            if(lengthPts.size() == 2)
+            if(pr.getIntersectedNode() == object)
             {
-                root.getChildren().removeAll(lengthPts);
-                lengthPts.clear();
+                pathSelect.update(point);
             }
-            else if(lengthPts.size() == 1)
+        });
+        
+        subscene.setOnMouseClicked((MouseEvent me) ->
+        {     
+            if(me.getButton().equals(MouseButton.PRIMARY))
             {
-                double startx = lengthPts.get(0).getTranslateX();
-                double starty = lengthPts.get(0).getTranslateY();
-                double startz = lengthPts.get(0).getTranslateZ();
-                
-                double dx = startx - point.getX();
-                double dy = starty - point.getY();
-                double dz = startz - point.getZ();
-                
-                
-                double dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
-                System.out.println(dist);
-            }
+                PickResult pr = me.getPickResult();
+                Point3D point = pr.getIntersectedPoint();
             
-            lengthPts.add(s);
+                pathSelect.click(point, pr.getIntersectedNode() == object);
+            }
         });
         
         
@@ -234,8 +225,14 @@ public class MomentOfInertia extends Application
         mz.setTranslateX(25);
         mz.setTranslateY(80);
         
+        Text bounds = new Text();
+        bounds.setText("Minimum Bounds: (" + boundBox.get(0)[0] + ", " + boundBox.get(0)[1] + ", " + boundBox.get(0)[2] + ")\n" +
+                       "Maximum Bounds: (" + boundBox.get(7)[0] + ", " + boundBox.get(7)[1] + ", " + boundBox.get(7)[2] + ")");
+        bounds.setTranslateX(25);
+        bounds.setTranslateY(95);
         
-        root.getChildren().addAll(massText, mPerPixelText, mx, my, mz);
+        
+        root.getChildren().addAll(massText, mPerPixelText, mx, my, mz, bounds);
     }
     
     public double calculate(Point3D origin, Point3D axisDir, double metersPerUnit, double mass)
@@ -252,9 +249,7 @@ public class MomentOfInertia extends Application
             
             Point3D p = new Point3D(x,y,z);
             
-            
-            double r = axisDir.dotProduct(p.subtract(origin)) * metersPerUnit; //Converted to meters
-            System.out.println("R: " + r);
+            double r = axisDir.crossProduct(p.subtract(origin)).magnitude() / axisDir.magnitude() * metersPerUnit;
             
             total += particleMass*r*r;
         }

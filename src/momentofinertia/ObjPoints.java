@@ -9,7 +9,7 @@ import javafx.scene.shape.TriangleMesh;
 
 public class ObjPoints 
 {
-    private final double DENSITY = 20;
+    private final double DENSITY = 50;
     
     private MeshView meshview = new MeshView();
     
