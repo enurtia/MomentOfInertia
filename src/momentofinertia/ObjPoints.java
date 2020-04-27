@@ -4,12 +4,14 @@ import java.util.ArrayList;
 import javafx.collections.ObservableFloatArray;
 import javafx.collections.ObservableIntegerArray;
 import javafx.geometry.Bounds;
+import javafx.scene.paint.Color;
+import javafx.scene.paint.PhongMaterial;
 import javafx.scene.shape.MeshView;
 import javafx.scene.shape.TriangleMesh;
 
 public class ObjPoints 
 {
-    private double density = 50;
+    private double density = 30;
     
     private MeshView meshview = new MeshView();
     
@@ -23,6 +25,8 @@ public class ObjPoints
     private ArrayList<Double[]> centroids = new ArrayList<>();
     private ArrayList<Double[]> pts = new ArrayList<>();
     
+    private boolean counterClockW = true;
+    
     public ObjPoints(MeshView meshview) throws Exception
     {
         this.meshview = meshview;
@@ -35,6 +39,10 @@ public class ObjPoints
     
     private void init()
     {
+        normals.clear();
+        centroids.clear();
+        pts.clear();
+        
         for(int i = 0; i < faces.size(); i += 6)
         {
             double p1x = points.get(3*faces.get(i));
@@ -61,9 +69,9 @@ public class ObjPoints
             double vy = (p3y - p1y);
             double vz = (p3z - p1z);
             
-            double nx = (uy*vz - uz*vy);
-            double ny = (uz*vx - ux*vz);    
-            double nz = (ux*vy - uy*vx);
+            double nx = (uy*vz - uz*vy) * (counterClockW ? 1 : -1);
+            double ny = (uz*vx - ux*vz) * (counterClockW ? 1 : -1);    
+            double nz = (ux*vy - uy*vx) * (counterClockW ? 1 : -1);
             
             double dist = Math.sqrt(nx*nx + ny*ny + nz*nz);
             
@@ -73,15 +81,10 @@ public class ObjPoints
             double x = ((p1x + p2x + p3x) / 3);
             double y = ((p1y + p2y + p3y) / 3);
             double z = ((p1z + p2z + p3z) / 3);
-            centroids.add(new Double[]{x,y,z});
+            centroids.add(new Double[]{x,y,z});          
         }
         
         calculatePts();
-    }
-    
-    public ArrayList<Double[]> getPts()
-    {
-        return pts;
     }
     
     private void calculatePts()
@@ -104,6 +107,7 @@ public class ObjPoints
         {
             e.printStackTrace();
         }
+        
     }
     
     //Checks whether point is inside mesh or not
@@ -118,6 +122,12 @@ public class ObjPoints
         double min = Integer.MAX_VALUE;
         double[] minVector = new double[3];
         
+        PhongMaterial mat = new PhongMaterial();
+        PhongMaterial mat2 = new PhongMaterial();
+        
+        mat.setDiffuseColor(Color.RED);
+        mat2.setDiffuseColor(Color.BLUE);
+        
         for(int i = 0; i < centroids.size(); i++)
         {
             Double[] centroid = centroids.get(i);
@@ -125,8 +135,6 @@ public class ObjPoints
             double dx = (centroid[0] - x);
             double dy = (centroid[1] - y);
             double dz = (centroid[2] - z);
-            
-            
             
             double dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
             if(dist < min)
@@ -142,6 +150,7 @@ public class ObjPoints
         double dp = normal[0]*minVector[0] + normal[1]*minVector[1] + normal[2]*minVector[2];
         
         return dp >= 0;
+
     }
     
    //Gets ArrayList of {x,y,z} values that fill bounds with a given density.
@@ -177,6 +186,17 @@ public class ObjPoints
    public double getDensity()
    {
        return density;
+   }
+   
+    public ArrayList<Double[]> getPts()
+    {
+        return pts;
+    }
+   
+   public void setCCW(boolean ccw)
+   {
+       counterClockW = ccw;
+       init();
    }
    
    public ArrayList<Double[]> bBox(Bounds bounds)

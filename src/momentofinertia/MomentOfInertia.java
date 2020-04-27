@@ -21,6 +21,7 @@ import javafx.scene.shape.DrawMode;
 import javafx.scene.shape.MeshView;
 import javafx.scene.shape.Sphere;
 import javafx.scene.text.Text;
+import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import javax.swing.JOptionPane;
 
@@ -35,6 +36,7 @@ public class MomentOfInertia extends Application
     private double density = 50;
     
     private boolean showPts = false;
+    private boolean counterClockW = true;
     
     private Group root;
     private ObjPoints objP;
@@ -46,6 +48,9 @@ public class MomentOfInertia extends Application
     
     //Bounding box
     private ArrayList<Double[]> boundBox = new ArrayList<>();
+    
+    //Measuring
+    private double measureUnits = 0;
     
     //Axes
     private Line lx, ly, lz;
@@ -69,10 +74,17 @@ public class MomentOfInertia extends Application
         primaryStage.show();
         
         scene.setFill(Color.GRAY);
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Open Obj File");
+        File file = fileChooser.showOpenDialog(primaryStage);
         
+        if(!file.exists())
+        {
+            primaryStage.close();
+        }
         
         ObjModelImporter importer = new ObjModelImporter();
-        importer.read(new File("C:\\Users\\Enurtia\\Desktop\\Sphere.obj"));
+        importer.read(file);
         
         MeshView object = importer.getImport()[0];
         object.setDrawMode(DrawMode.LINE);
@@ -91,6 +103,8 @@ public class MomentOfInertia extends Application
         updatePts(false);
         calcAvg();
         updateText(rootMain);
+        
+        
         
         scene.setOnKeyPressed((KeyEvent ke) ->
         {
@@ -122,6 +136,7 @@ public class MomentOfInertia extends Application
                 String densityIn = JOptionPane.showInputDialog("Input the density: ");
                 density = Double.parseDouble(densityIn);
                 objP.setDensity(density);
+                calcAvg();
                 updateText(rootMain);
                 updatePts(showPts);
             }
@@ -129,6 +144,18 @@ public class MomentOfInertia extends Application
             {
                 showPoints(!showPts);
                 showPts = !showPts;
+            }
+            else if(ke.getCode() == KeyCode.BACK_SPACE && pathSelect.isActive())
+            {
+                pathSelect.reset();
+            }
+            else if(ke.getCode() == KeyCode.M)
+            {
+                counterClockW = !counterClockW;
+                objP.setCCW(counterClockW);
+                calcAvg();
+                updateText(rootMain);
+                updatePts(showPts);
             }
         });       
         
@@ -165,9 +192,10 @@ public class MomentOfInertia extends Application
                 Point3D point = pr.getIntersectedPoint();
             
                 pathSelect.click(point, pr.getIntersectedNode() == object);
+                measureUnits = pathSelect.getDistance();
+                updateText(rootMain);
             }
         });
-        
         
         lx = new Line(avg, avg.add(new Point3D(10,0,0)));
         ly = new Line(avg, avg.add(new Point3D(0,10,0)));
@@ -217,14 +245,22 @@ public class MomentOfInertia extends Application
         densText.setTranslateY(125);
         
         Text ptsText = new Text();
-        ptsText.setText("Press K to show points");
+        ptsText.setText("Press K to show points"
+                + "\nClick and Enter to convert length, or Backspace to reset."
+                + "\nMeasurement:\t" + measureUnits + " units"
+                + "\n\t\t\t" + (measureUnits*mPerUnit) + " meters");
         ptsText.setTranslateX(25);
         ptsText.setTranslateY(140);
         
-        root.getChildren().addAll(massText, mPerPixelText, mx, my, mz, bounds, densText, ptsText);
+        Text ccwText = new Text();
+        ccwText.setText("Press M to toggle counter-clockwise calculated normals and clockwise.");
+        ccwText.setTranslateX(25);
+        ccwText.setTranslateY(200);
+        
+        root.getChildren().addAll(massText, mPerPixelText, mx, my, mz, bounds, densText, ptsText, ccwText);
     }
     
-    public double calculate(Point3D origin, Point3D axisDir, double metersPerUnit, double mass)
+    private double calculate(Point3D origin, Point3D axisDir, double metersPerUnit, double mass)
     {
         double particleMass = mass / pts.size();    //Kilograms
         
@@ -246,7 +282,7 @@ public class MomentOfInertia extends Application
         return total;
     }
     
-    public void updatePts(boolean show)
+    private void updatePts(boolean show)
     {
         pts = objP.getPts();
                 
@@ -265,12 +301,9 @@ public class MomentOfInertia extends Application
             avg = avg.add(pt[0], pt[1], pt[2]);
         }
         avg = avg.multiply(1.0 / pts.size());
-        
-        //Set Axes
-        
     }
     
-    public void showPoints(boolean show)
+    private void showPoints(boolean show)
     {
         if(show)
         {
@@ -288,6 +321,7 @@ public class MomentOfInertia extends Application
 
                 spherePts.add(s);
             }
+            
             root.getChildren().addAll(spherePts);
         }
         else

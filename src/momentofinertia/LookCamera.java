@@ -11,7 +11,6 @@ public class LookCamera extends PerspectiveCamera
     private double screenX;
     private double screenY;
     
-    
     public LookCamera(boolean fixedEyeAtCameraZero)
     {
         super(fixedEyeAtCameraZero);
@@ -32,7 +31,7 @@ public class LookCamera extends PerspectiveCamera
         rotate(dx, sens);
     }
 
-    public void rotate(double dx, double sens)
+    private void rotate(double dx, double sens)
     {
         Rotate rotateX = new Rotate();
         rotateX.setPivotX(0);
