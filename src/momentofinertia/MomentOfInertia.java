@@ -32,13 +32,23 @@ public class MomentOfInertia extends Application
     
     private double mPerUnit = 1;
     private double objMass = 1;
+    private double density = 50;
     
+    private boolean showPts = false;
+    
+    private Group root;
+    private ObjPoints objP;
     private Point3D avg;
     
     //The points that make up the object
-    ArrayList<Double[]> pts = new ArrayList<>();
+    private ArrayList<Double[]> pts = new ArrayList<>();
+    private ArrayList<Sphere> spherePts = new ArrayList<>();
     
-    ArrayList<Double[]> boundBox = new ArrayList<>();
+    //Bounding box
+    private ArrayList<Double[]> boundBox = new ArrayList<>();
+    
+    //Axes
+    private Line lx, ly, lz;
     
     @Override
     public void start(Stage primaryStage) throws Exception
@@ -46,7 +56,7 @@ public class MomentOfInertia extends Application
         Group rootMain = new Group();
         Scene scene = new Scene(rootMain, SIZE.width, SIZE.height, true);   
         
-        Group root = new Group();
+        root = new Group();
         SubScene subscene = new SubScene(root, SIZE.width, SIZE.height, true, SceneAntialiasing.BALANCED);
         subscene.heightProperty().bind(scene.heightProperty());
         subscene.widthProperty().bind(scene.widthProperty());
@@ -62,61 +72,24 @@ public class MomentOfInertia extends Application
         
         
         ObjModelImporter importer = new ObjModelImporter();
-        importer.read(new File("C:\\Users\\Enurtia\\Desktop\\cylinder.obj"));
+        importer.read(new File("C:\\Users\\Enurtia\\Desktop\\Sphere.obj"));
         
         MeshView object = importer.getImport()[0];
         object.setDrawMode(DrawMode.LINE);
         importer.close();
-        
-        PathSelect pathSelect = new PathSelect(object, root);
-        ObjPoints objP = new ObjPoints(object);
-        
+       
         root.getChildren().add(object);
         
+        PathSelect pathSelect = new PathSelect(object, root);
+        objP = new ObjPoints(object);
+        boundBox = objP.bBox(object.getBoundsInParent());
         
         LookCamera camera = new LookCamera(true);
         subscene.setCamera(camera);
         camera.setTranslateZ(-30);
         
-        boundBox = objP.bBox(object.getBoundsInParent());
-        
-        //Create 8 corners
-        for(int i = 0; i < boundBox.size(); i++)
-        {
-            Sphere s = new Sphere();
-            s.setRadius(0.2);
-            
-            Double [] pt = boundBox.get(i);
-            s.setTranslateX(pt[0]);
-            s.setTranslateY(pt[1]);
-            s.setTranslateZ(pt[2]);
-            
-            root.getChildren().add(s);
-        }
-            
-        pts = objP.getPts();
-        
-        
-        for(int i = 0; i < pts.size(); i++)
-        {
-            Sphere s = new Sphere();
-            s.setRadius(0.01);
-            s.setTranslateX(pts.get(i)[0]);
-            s.setTranslateY(pts.get(i)[1]);
-            s.setTranslateZ(pts.get(i)[2]);
-            
-            //root.getChildren().add(s);
-        }
-        
-        //Calculate where the center of mass is located
-        avg = new Point3D(0,0,0);
-        for(int i = 0; i < pts.size(); i++)
-        {
-            Double[] pt = pts.get(i);
-            avg = avg.add(pt[0], pt[1], pt[2]);
-        }
-        avg = avg.multiply(1.0 / pts.size());
-        
+        updatePts(false);
+        calcAvg();
         updateText(rootMain);
         
         scene.setOnKeyPressed((KeyEvent ke) ->
@@ -143,6 +116,19 @@ public class MomentOfInertia extends Application
                 
                 pathSelect.reset();
                 updateText(rootMain);
+            }
+            else if(ke.getCode() == KeyCode.L)
+            {
+                String densityIn = JOptionPane.showInputDialog("Input the density: ");
+                density = Double.parseDouble(densityIn);
+                objP.setDensity(density);
+                updateText(rootMain);
+                updatePts(showPts);
+            }
+            else if(ke.getCode() == KeyCode.K)
+            {
+                showPoints(!showPts);
+                showPts = !showPts;
             }
         });       
         
@@ -183,16 +169,16 @@ public class MomentOfInertia extends Application
         });
         
         
-        Line cylinx = new Line(avg, avg.add(new Point3D(10,0,0)));
-        Line cyliny = new Line(avg, avg.add(new Point3D(0,10,0)));
-        Line cylinz = new Line(avg, avg.add(new Point3D(0,0,10)));
-        root.getChildren().addAll(cylinx, cyliny, cylinz);
+        lx = new Line(avg, avg.add(new Point3D(10,0,0)));
+        ly = new Line(avg, avg.add(new Point3D(0,10,0)));
+        lz = new Line(avg, avg.add(new Point3D(0,0,10)));
+        root.getChildren().addAll(lx, ly, lz);
     }
     
     private void updateText(Group root)
     {
-        root.getChildren().removeIf(n -> (n.getClass() == Text.class));
-        root.getChildren().removeIf(n -> (n.getClass() == Cylinder.class));
+        root.getChildren().removeIf(n -> (n.getClass().equals(Text.class)));
+        root.getChildren().removeIf(n -> (n.getClass().equals(Cylinder.class)));
         
         Text massText = new Text();
         massText.setText("Mass: " + objMass + " kg");
@@ -225,8 +211,17 @@ public class MomentOfInertia extends Application
         bounds.setTranslateX(25);
         bounds.setTranslateY(95);
         
+        Text densText = new Text();
+        densText.setText("Density (L): " + objP.getDensity());
+        densText.setTranslateX(25);
+        densText.setTranslateY(125);
         
-        root.getChildren().addAll(massText, mPerPixelText, mx, my, mz, bounds);
+        Text ptsText = new Text();
+        ptsText.setText("Press K to show points");
+        ptsText.setTranslateX(25);
+        ptsText.setTranslateY(140);
+        
+        root.getChildren().addAll(massText, mPerPixelText, mx, my, mz, bounds, densText, ptsText);
     }
     
     public double calculate(Point3D origin, Point3D axisDir, double metersPerUnit, double mass)
@@ -249,6 +244,56 @@ public class MomentOfInertia extends Application
         }
         
         return total;
+    }
+    
+    public void updatePts(boolean show)
+    {
+        pts = objP.getPts();
+                
+        calcAvg();
+        showPoints(show);
+
+    }
+    
+    private void calcAvg()
+    {
+        //Calculate where the center of mass is located
+        avg = new Point3D(0,0,0);
+        for(int i = 0; i < pts.size(); i++)
+        {
+            Double[] pt = pts.get(i);
+            avg = avg.add(pt[0], pt[1], pt[2]);
+        }
+        avg = avg.multiply(1.0 / pts.size());
+        
+        //Set Axes
+        
+    }
+    
+    public void showPoints(boolean show)
+    {
+        if(show)
+        {
+            pts = objP.getPts();
+            root.getChildren().removeIf(n -> spherePts.contains(n));
+            spherePts.clear();
+            
+            for(int i = 0; i < pts.size(); i++)
+            {
+                Sphere s = new Sphere();
+                s.setRadius(0.01);
+                s.setTranslateX(pts.get(i)[0]);
+                s.setTranslateY(pts.get(i)[1]);
+                s.setTranslateZ(pts.get(i)[2]);
+
+                spherePts.add(s);
+            }
+            root.getChildren().addAll(spherePts);
+        }
+        else
+        {
+            root.getChildren().removeIf(n -> spherePts.contains(n));
+        }
     }
     
     public static void main(String[] args) 

@@ -9,8 +9,7 @@ import javafx.scene.shape.TriangleMesh;
 
 public class ObjPoints 
 {
-    private final double DENSITY = 50;
-    private final double DENSITY = 10;
+    private double density = 50;
     
     private MeshView meshview = new MeshView();
     
@@ -34,7 +33,7 @@ public class ObjPoints
         init();
     }
     
-    private void init() throws Exception
+    private void init()
     {
         for(int i = 0; i < faces.size(); i += 6)
         {
@@ -85,18 +84,25 @@ public class ObjPoints
         return pts;
     }
     
-    private void calculatePts() throws Exception
+    private void calculatePts()
     {
-        pts = discretizeSolid(meshview.getBoundsInParent());
-        for(int i = pts.size()-1; i >= 0; i--)
+        try
         {
-            Double[] pt = pts.get(i);
-            
-            boolean isIn = isInside(pt);
-            if(!isIn)
+            pts = discretizeSolid(meshview.getBoundsInParent());
+            for(int i = pts.size()-1; i >= 0; i--)
             {
-                pts.remove(pt);
+                Double[] pt = pts.get(i);
+
+                boolean isIn = isInside(pt);
+                if(!isIn)
+                {
+                    pts.remove(pt);
+                }
             }
+        }
+        catch(Exception e)
+        {
+            e.printStackTrace();
         }
     }
     
@@ -147,11 +153,11 @@ public class ObjPoints
        
        ArrayList<Double[]> pts = new ArrayList<>();
        
-       for(double x = 0; x <= xLen; x += xLen / DENSITY)
+       for(double x = 0; x <= xLen; x += xLen / density)
        {
-           for(double y = 0; y <= yLen; y += yLen / DENSITY)
+           for(double y = 0; y <= yLen; y += yLen / density)
            {
-               for(double z = 0; z <= zLen; z += zLen / DENSITY)
+               for(double z = 0; z <= zLen; z += zLen / density)
                {
                    Double[] pt = new Double[]{bounds.getMinX() + x, bounds.getMinY() + y, bounds.getMinZ() + z};
                    pts.add(pt);
@@ -160,6 +166,17 @@ public class ObjPoints
        }
        
        return pts;
+   }
+   
+   public void setDensity(double density)
+   {
+       this.density = density;
+       init();
+   }
+   
+   public double getDensity()
+   {
+       return density;
    }
    
    public ArrayList<Double[]> bBox(Bounds bounds)
