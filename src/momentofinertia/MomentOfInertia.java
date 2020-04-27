@@ -5,11 +5,7 @@ import java.awt.Dimension;
 import java.io.File;
 import java.util.ArrayList;
 import javafx.application.Application;
-import javafx.collections.ObservableFloatArray;
-import javafx.collections.ObservableIntegerArray;
-import javafx.geometry.Bounds;
 import javafx.geometry.Point3D;
-import javafx.scene.DepthTest;
 import javafx.scene.Group;
 import javafx.scene.Scene;
 import javafx.scene.SceneAntialiasing;
@@ -20,12 +16,10 @@ import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.input.PickResult;
 import javafx.scene.paint.Color;
-import javafx.scene.paint.PhongMaterial;
 import javafx.scene.shape.Cylinder;
 import javafx.scene.shape.DrawMode;
 import javafx.scene.shape.MeshView;
 import javafx.scene.shape.Sphere;
-import javafx.scene.shape.TriangleMesh;
 import javafx.scene.text.Text;
 import javafx.stage.Stage;
 import javax.swing.JOptionPane;
@@ -111,7 +105,7 @@ public class MomentOfInertia extends Application
             s.setTranslateY(pts.get(i)[1]);
             s.setTranslateZ(pts.get(i)[2]);
             
-            root.getChildren().add(s);
+            //root.getChildren().add(s);
         }
         
         //Calculate where the center of mass is located
