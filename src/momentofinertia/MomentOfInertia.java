@@ -266,8 +266,6 @@ public class MomentOfInertia extends Application
         }
         avg = avg.multiply(1.0 / pts.size());
         
-        //Set Axes
-        
     }
     
     public void showPoints(boolean show)
