@@ -301,6 +301,7 @@ public class MomentOfInertia extends Application
             avg = avg.add(pt[0], pt[1], pt[2]);
         }
         avg = avg.multiply(1.0 / pts.size());
+        
     }
     
     private void showPoints(boolean show)
